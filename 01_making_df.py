@@ -10,7 +10,7 @@ import time
 import glob
 
 # os.getcwd()
-os.chdir('SRB/test')
+# os.chdir('SRB/test')
 
 # Record the start time
 start_time = time.time()
