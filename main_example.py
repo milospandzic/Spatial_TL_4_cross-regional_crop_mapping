@@ -76,14 +76,15 @@ feature_extractor = TransformerModel(input_dim=input_dim, num_classes=num_classe
 classifier = Classifier(input_dim=dim_feedforward, num_classes=num_classes)
 # Initialize the combined model
 model = CombinedModel(feature_extractor=feature_extractor, classifier=classifier)
-
+# model = SimpleNN()
 
 
 # model = TransformerModel(input_dim, num_classes)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
 model.to(device)
 
 
@@ -97,15 +98,21 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         running_corrects = 0
         print(epoch)
         for inputs, labels in train_loader:
+            # print(inputs.shape, inputs)
             inputs, labels = inputs.to(device), labels.to(device)
-
             optimizer.zero_grad()
+            # outputs = model(torch.reshape(inputs, (-1, 13 * 3)))
             outputs = model(inputs, dates)
-            loss = criterion(outputs, labels)
+            # print(np.shape(outputs), np.shape(labels))
+            # outputs = model(inputs, dates)
+            # loss = criterion(outputs, torch.unsqueeze(labels, 1))
+            loss = criterion(torch.squeeze(outputs), labels)
+            # print(loss)
             loss.backward()
             optimizer.step()
-
+            # print(outputs.shape, outputs)
             _, preds = torch.max(outputs, 1)
+            # print(preds)
             running_loss += loss.item() * inputs.size(0)
             running_corrects += torch.sum(preds == labels.data)
 
@@ -121,8 +128,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         with torch.no_grad():
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(device), labels.to(device)
+                # outputs = model(torch.reshape(inputs, (-1, 13 * 3)))
                 outputs = model(inputs, dates)
-                loss = criterion(outputs, labels)
+                # loss = criterion(outputs, torch.unsqueeze(labels, 1))
+                loss = criterion(torch.squeeze(outputs), labels)
                 _, preds = torch.max(outputs, 1)
                 val_loss += loss.item() * inputs.size(0)
                 val_corrects += torch.sum(preds == labels.data)

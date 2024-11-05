@@ -3,6 +3,7 @@ import torch.nn as nn
 import numpy as np
 from datetime import datetime
 import torch.optim as optim
+from networkx import directed_configuration_model
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 class ObservationEmbedding(nn.Module):
@@ -128,13 +129,14 @@ class SimpleNN(nn.Module):
         super(SimpleNN, self).__init__()
         self.fc1 = nn.Linear(13*3, 16)  # First fully connected layer
         self.fc2 = nn.Linear(16, 8)   # Second fully connected layer
-        self.fc3 = nn.Linear(8, 9)    # Output layer for 2 classes
+        self.fc3 = nn.Linear(8, 1)    # Output layer for 2 classes
 
-    def forward(self, x, dates):
-        print(f"Before 1st FC layer x.shape is: {x.shape}")
+    def forward(self, x):
+        # print(f"Before 1st FC layer x.shape is: {x.shape}")
         x = torch.relu(self.fc1(x))
-        print(f"After 1st FC layer x.shape is: {x.shape}")
+        # print(f"After 1st FC layer x.shape is: {x.shape}")
         x = torch.relu(self.fc2(x))
-        print(f"After 2nd FC layer x.shape is: {x.shape}")
+        # print(f"After 2nd FC layer x.shape is: {x.shape}")
         x = self.fc3(x)
+        # print(f"After 3rd FC layer x.shape is: {x.shape}")
         return x
