@@ -51,7 +51,7 @@ class ObservationEmbedding(nn.Module):
 
 class TransformerModel(nn.Module):
     # Pravim trasnformer block, koji je zapravo samo encoder block (iliti samo encoder layer); ne treba mi decoder
-    def __init__(self, input_dim, num_classes, nhead=8, num_encoder_layers=6, dim_feedforward=256, dropout=0.1):
+    def __init__(self, input_dim, num_classes, nhead=2, num_encoder_layers=2, dim_feedforward=128, dropout=0.1):
         super(TransformerModel, self).__init__()
         self.model_type = 'Transformer'
         self.observation_embedding = ObservationEmbedding(input_dim, dim_feedforward)
@@ -90,7 +90,8 @@ class Classifier(nn.Module):
         x = self.fc(x)
         # print(f"After FC, shape is: {x.shape}")
         # Apply softmax for probability distribution
-        output = self.softmax(x)
+        output = x
+        # output = self.softmax(x)
         return output
 
 # Napravio sam CombinedModel da bih mogao kasnije da freezujem feature extractor (tj. TransformerModel) i treniram samo Classifier head.

@@ -12,6 +12,10 @@ import torch
 from torch.utils.data import DataLoader, Dataset, random_split
 from sklearn.preprocessing import LabelEncoder
 
+seed = 42
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
+
 # Load the data
 slo_data = pd.read_pickle('data/SLO_S1_data.pkl')
 srb_data = pd.read_pickle('data/SRB_S1_data.pkl')
@@ -31,12 +35,12 @@ X_slo, y_slo = preprocess_data(slo_data)
 X_srb, y_srb = preprocess_data(srb_data)
 
 # Split the SLO data into training (70%), validation (15%), and testing (15%) sets
-X_train, X_temp, y_train, y_temp = train_test_split(X_slo, y_slo, test_size=0.3, random_state=42)
-X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+X_train, X_temp, y_train, y_temp = train_test_split(X_slo, y_slo, test_size=0.3, random_state=seed)
+X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=seed)
 
 # Split the SRB data into training (15%), validation (15%), and testing (70%) sets
-X_temp_srb, X_test_srb, y_temp_srb, y_test_srb = train_test_split(X_srb, y_srb, test_size=0.7, random_state=42)
-X_train_srb, X_val_srb, y_train_srb, y_val_srb = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+X_temp_srb, X_test_srb, y_temp_srb, y_test_srb = train_test_split(X_srb, y_srb, test_size=0.7, random_state=seed)
+X_train_srb, X_val_srb, y_train_srb, y_val_srb = train_test_split(X_temp, y_temp, test_size=0.5, random_state=seed)
 
 
 class TimeSeriesDataset(Dataset):
@@ -149,7 +153,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     return model
 
 
-model = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=25)
+model = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=3)
 
 
 # Save the model weights and optimizer state
