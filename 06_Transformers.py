@@ -23,6 +23,8 @@ X_srb, y_srb = preprocess_data(srb_data)
 X_train, X_temp, y_train, y_temp = train_test_split(X_slo, y_slo, test_size=0.3, random_state=42)
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.6667, random_state=42)
 
+# Split the SRB data into training (70%), validation (10%), and testing (20%) sets
+reX_train, reX_test, rey_train, rey_test = train_test_split(X_srb, y_srb, test_size=0.85, random_state=42)
 
 class TimeSeriesDataset(Dataset):
     def __init__(self, X, y):
@@ -38,12 +40,16 @@ class TimeSeriesDataset(Dataset):
 train_dataset = TimeSeriesDataset(X_train, y_train)
 val_dataset = TimeSeriesDataset(X_val, y_val)
 test_dataset = TimeSeriesDataset(X_test, y_test)
-srb_dataset = TimeSeriesDataset(X_srb, y_srb)
+# srb_dataset = TimeSeriesDataset(X_srb, y_srb)
+srb_train_dataset = TimeSeriesDataset(reX_train, rey_train)
+srb_test_dataset = TimeSeriesDataset(reX_test, rey_test)
 
 train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
-srb_loader = DataLoader(srb_dataset, batch_size=32, shuffle=False)
+# srb_loader = DataLoader(srb_dataset, batch_size=32, shuffle=False)
+srb_train_loader = DataLoader(srb_train_dataset, batch_size=32, shuffle=False)
+srb_test_loader = DataLoader(srb_test_dataset, batch_size=32, shuffle=False)
 
 import torch.nn as nn
 import torch.optim as optim
@@ -135,6 +141,17 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
 model = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=25)
 
+# Save the model weights and optimizer state
+def save_model(model, optimizer, epoch, path="transformer_model.pth"):
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+    }, path)
+    print(f"Model saved to {path}")
+
+# Example usage during/after training
+save_model(model, optimizer, epoch=25, path="trained_transformer_model.pth")
 
 def evaluate_model(model, dataloader):
     model.eval()
@@ -155,5 +172,52 @@ def evaluate_model(model, dataloader):
 test_accuracy = evaluate_model(model, test_loader)
 print("Test Accuracy:", test_accuracy)
 
-srb_accuracy = evaluate_model(model, srb_loader)
+srb_accuracy = evaluate_model(model, srb_test_loader)
 print("SRB Test Accuracy:", srb_accuracy)
+
+### TRANSFER LEARNING
+
+# Load the model weights and optimizer state
+def load_model(model, optimizer, path="transformer_model.pth"):
+    checkpoint = torch.load(path)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch = checkpoint['epoch']
+    print(f"Model loaded from {path}, last trained epoch: {epoch}")
+    return model, optimizer, epoch
+
+# Example usage before resuming training or evaluation
+model, optimizer, start_epoch = load_model(model, optimizer, path="trained_transformer_model.pth")
+
+def retrain_model(model, retrain_loader, criterion, optimizer, num_epochs=10):
+    model.train()
+    for epoch in range(num_epochs):
+        running_loss = 0.0
+        running_corrects = 0
+
+        for inputs, labels in retrain_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            _, preds = torch.max(outputs, 1)
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+
+        epoch_loss = running_loss / len(retrain_loader.dataset)
+        epoch_acc = running_corrects.double() / len(retrain_loader.dataset)
+
+        print(f'Epoch {epoch}/{num_epochs - 1} Retrain Loss: {epoch_loss:.4f} Retrain Acc: {epoch_acc:.4f}')
+
+    return model
+
+# Retrain the model on the retrain dataset
+modelTL = retrain_model(model, srb_train_loader, criterion, optimizer, num_epochs=10)
+
+# Evaluate the retrained model on the SRB dataset
+srb_accuracy = evaluate_model(modelTL, srb_test_loader)
+print("SRB Test Accuracy after Retraining:", srb_accuracy)

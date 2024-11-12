@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import numpy as np
 from datetime import datetime
-from transformers_modules import ObservationEmbedding,TransformerModel,Classifier,CombinedModel, SimpleNN
+from transformers_modules import ObservationEmbedding,TransformerModel,Classifier,CombinedModel
 import torch.optim as optim
 
 import pandas as pd
@@ -40,7 +40,7 @@ X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, r
 
 # Split the SRB data into training (15%), validation (15%), and testing (70%) sets
 X_temp_srb, X_test_srb, y_temp_srb, y_test_srb = train_test_split(X_srb, y_srb, test_size=0.7, random_state=seed)
-X_train_srb, X_val_srb, y_train_srb, y_val_srb = train_test_split(X_temp, y_temp, test_size=0.5, random_state=seed)
+X_train_srb, X_val_srb, y_train_srb, y_val_srb = train_test_split(X_temp_srb, y_temp_srb, test_size=0.5, random_state=seed)
 
 
 class TimeSeriesDataset(Dataset):
@@ -73,17 +73,15 @@ test_loader_srb = DataLoader(test_dataset_srb, batch_size=32, shuffle=False)
 
 input_dim = X_train.shape[2]
 num_classes = len(np.unique(y_slo))
-dim_feedforward = 13
+dim_feedforward = 128
 
 # Initialize the feature extractor and classifier separately
 feature_extractor = TransformerModel(input_dim=input_dim, num_classes=num_classes)
 classifier = Classifier(input_dim=dim_feedforward, num_classes=num_classes)
 # Initialize the combined model
 model = CombinedModel(feature_extractor=feature_extractor, classifier=classifier)
-# model = SimpleNN()
 
 
-# model = TransformerModel(input_dim, num_classes)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
@@ -167,7 +165,7 @@ def save_model(model, optimizer, epoch, path="transformer_model.pth"):
 
 
 # Example usage during/after training
-save_model(model, optimizer, epoch=25, path="trained_transformer_model.pth")
+save_model(model, optimizer, epoch=3, path="trained_transformer_model.pth")
 
 
 def evaluate_model(model, dataloader):
@@ -192,3 +190,8 @@ print("SLO Test Accuracy:", test_accuracy)
 
 srb_accuracy = evaluate_model(model, test_loader_srb)
 print("SRB Test Accuracy:", srb_accuracy)
+
+model.freeze_feature_extractor()
+modelSRB = train_model(model, train_loader_srb, val_loader_srb, criterion, optimizer, num_epochs=3)
+TLsrb_accuracy = evaluate_model(modelSRB, test_loader_srb)
+print("Transfer Learning - SRB Test Accuracy:", TLsrb_accuracy)
