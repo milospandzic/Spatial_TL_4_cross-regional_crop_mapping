@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
@@ -8,7 +9,7 @@ from sklearn.ensemble import RandomForestClassifier
 import itertools
 
 import torch
-from joblib import dump
+import joblib
 import re
 
 data_path = Path('data')
@@ -27,6 +28,8 @@ def load_data(filename, train_size, test_size):
     X_train, X_temp, Y_train, Y_temp = train_test_split(X, Y, test_size=1-train_size, random_state=seed)
     X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=test_size/(1-train_size), random_state=seed)
 
+    print(X_test[:5])
+
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
 
 def train_model(model, data):
@@ -43,17 +46,19 @@ def train_model(model, data):
 
     return res, model
 
-def hyperparameter_opt(model_def, params, data, df):
+def hyperparameter_opt(model_def, params, data, df, filename):
 
     model = model_def(**params)
 
-    res, model = train_model(model, data)
-    res['Params'] = str(params)
-    df = pd.concat([df, pd.DataFrame(res, index=[0])], ignore_index=True)
+    for iteration in np.arange(0, 5):
+        res, model = train_model(model, data)
+        res['Params'] = str(params)
+        res['Iteration'] = iteration + 1
+        df = pd.concat([df, pd.DataFrame(res, index=[0])], ignore_index=True)
 
-    param_str = [f"{k}-{v}" for k, v in params.items()]
+        param_str = [f"{k}-{v}" for k, v in params.items()]
 
-    dump(model,f'models/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}.joblib')
+        joblib.dump(model,f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration+1}.joblib')
 
     return df
 
