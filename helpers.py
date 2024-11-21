@@ -1,12 +1,21 @@
 from pathlib import Path
-from sklearn.model_selection import train_test_split
 import pandas as pd
+
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.ensemble import RandomForestClassifier
+
+import itertools
+
+import torch
+from joblib import dump
+import re
 
 data_path = Path('data')
 
 seed = 42
-# torch.manual_seed(seed)
-# torch.cuda.manual_seed_all(seed)
+torch.manual_seed(seed)
+torch.cuda.manual_seed_all(seed)
 
 def load_data(filename, train_size, test_size):
 
@@ -19,3 +28,40 @@ def load_data(filename, train_size, test_size):
     X_val, X_test, Y_val, Y_test = train_test_split(X_temp, Y_temp, test_size=test_size/(1-train_size), random_state=seed)
 
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
+
+def train_model(model, data):
+
+    res = {}
+
+    X_train, Y_train, X_val, Y_val, _, _ = data
+
+    model.fit(X_train, Y_train)
+
+    predictions = model.predict(X_val)
+
+    res = evaluation_metrics(res, Y_val, predictions)
+
+    return res, model
+
+def hyperparameter_opt(model_def, params, data, df):
+
+    model = model_def(**params)
+
+    res, model = train_model(model, data)
+    res['Params'] = str(params)
+    df = pd.concat([df, pd.DataFrame(res, index=[0])], ignore_index=True)
+
+    param_str = [f"{k}-{v}" for k, v in params.items()]
+
+    dump(model,f'models/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}.joblib')
+
+    return df
+
+def evaluation_metrics(res, Y_val, predictions):
+
+    res['accuracy'] = accuracy_score(Y_val, predictions)
+    res['F1 score'] = f1_score(Y_val, predictions, average='macro')
+    res['precision'] = precision_score(Y_val, predictions, average='macro')
+    res['recall'] = recall_score(Y_val, predictions, average='macro')
+
+    return res
