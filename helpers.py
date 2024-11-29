@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.ensemble import RandomForestClassifier
 
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 import itertools
 
@@ -39,38 +39,41 @@ def load_data(filename, train_size, test_size):
 
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
 
-def train_model(model, data):
+def train_model(model, data, deep_learning, dates):
 
     res = {}
 
-    # X_train, Y_train, X_val, Y_val, _, _ = data
-    #
-    # model.fit(X_train, Y_train)
+    X_train, Y_train, X_val, Y_val, _, _ = data
 
-    train_loader, val_loader,  = data
+    if deep_learning:
+        train_loader = prepare_dataloader(data[0], data[1], True)
+        val_loader = prepare_dataloader(data[2], data[3], False)
 
-    model.fit(train_loader, val_loader, num_epochs = 3)
+        model = model.fit(model, train_loader, val_loader, dates, num_epochs = 25)
+        predictions = model.predict(model, val_loader, dates)
+        print(predictions)
+    else:
+        model.fit(X_train, Y_train)
+        predictions = model.predict(X_val)
 
-    # predictions = model.predict(X_val)
-    #
-    # res = evaluation_metrics(res, Y_val, predictions)
+    res = evaluation_metrics(res, Y_val, predictions)
 
     return res, model
 
-def hyperparameter_opt(model_def, params, data, df, filename):
+def hyperparameter_opt(model_def, params, data, df, filename, deep_learning, dates):
 
     model = model_def(**params)
 
     for iteration in np.arange(0, 1):
-        res, model = train_model(model, data)
+        res, model = train_model(model, data, deep_learning, dates)
         res['Params'] = str(params)
         res['Iteration'] = iteration + 1
         df = pd.concat([df, pd.DataFrame(res, index=[0])], ignore_index=True)
 
         param_str = [f"{k}-{v}" for k, v in params.items()]
-
-        joblib.dump(model,f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration+1}.joblib')
-
+    #
+    #     joblib.dump(model,f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration+1}.joblib')
+    #
     return df
 
 def evaluation_metrics(res, labels, predictions):
@@ -103,6 +106,15 @@ def reshape_input(X):
     X = X.values.reshape(-1, len(X.columns.str[:4].unique()),  len(X.columns) // len(X.columns.str[:4].unique()))  # Reshape to (samples, time_steps, features)
     return X
 
+def prepare_dataloader(X, Y, shuffle):
+
+    X = reshape_input(X)
+
+    dataset = TimeSeriesDataset(X, Y.values)
+
+    loader = DataLoader(dataset, batch_size=32, shuffle=shuffle)
+
+    return loader
 
 class TimeSeriesDataset(Dataset):
     def __init__(self, X, y):
@@ -114,3 +126,5 @@ class TimeSeriesDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
+
+

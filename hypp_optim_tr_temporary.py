@@ -1,69 +1,39 @@
 from transformers_modules import *
 from helpers import *
 
-seed = 42
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
+deep_learning = True
 
-# Load the data
 filename = 'SRB_S1_data.pkl'
-
-# Preprocess data to create sequences
 
 train_val_test_ratio = [0.7, 0.15, 0.15]
 
-data = load_data(filename, train_val_test_ratio[0], train_val_test_ratio[2])
-
-X_train, Y_train, X_val, Y_val, _, Y_test = data
-
-dates = X_train.columns.str[:4].unique()
-
-X_train = reshape_input(X_train)
-X_val = reshape_input(X_val)
-
-train_dataset = TimeSeriesDataset(X_train, Y_train.values)
-val_dataset = TimeSeriesDataset(X_val, Y_val.values)
-
-train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
-
 params = {
-        'feature_extractor_params': {
             'nhead': [2, 4],
-            'dim_feedforward': [128],
+            'output_dim': [128],
             'num_encoder_layers': [2],
             'dropout': [0.1],
-            'input_dim': [X_train.shape[2]],
-            'num_classes': [len(np.unique(Y_train))]}
-    ,
-        'classifier_params': {
-            'input_dim': 128,
-             'num_classes': len(np.unique(Y_train))
-        },
+        }
 
-}
+data = load_data(filename, train_val_test_ratio[0], train_val_test_ratio[2])
+dates = data[0].columns.str[:4].unique()
 
-combination_params = [dict(zip(params['feature_extractor_params'].keys(), values)) for values in itertools.product(*params['feature_extractor_params'].values())]
+if deep_learning:
 
-model_def = TransformerModel
+    params['input_dim'] = [len(data[0].columns) // len(dates)]
+    params['num_classes'] = [len(np.unique(data[1]))]
+
+combination_params = [dict(zip(params.keys(), values)) for values in itertools.product(*params.values())]
 
 df_res = pd.DataFrame()
+model = TransformerModel
+
+meta_params = {'filename': filename, 'deep_learning': deep_learning, 'dates': dates}
 
 for p in combination_params:
 
-    params['feature_extractor_params'] = p
+    df_res = hyperparameter_opt(model, p, data, df_res, **meta_params)
+    df_res.to_csv(f'results/hypp_opt_{filename[:filename.rfind("_")]}_{re.sub("[^A-Z]", "", model.__name__)}.csv')
 
-    # df_res = hyperparameter_opt(model, params, data, df_res, filename)
-
-    # feature_extractor = EncoderBlock(**p)
-    # classifier = Classifier(input_dim=128, num_classes=len(np.unique(Y_train)))
-    # model = TransformerModel(feature_extractor=feature_extractor, classifier=classifier)
-
-    model = model_def(**params)
-    model.to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.0001)
-    model = model.fit(model, train_loader, val_loader, criterion, optimizer, dates, num_epochs=3)
 
 # # Save the model weights and optimizer state
 # def save_model(model, optimizer, epoch, path="transformer_model.pth"):
