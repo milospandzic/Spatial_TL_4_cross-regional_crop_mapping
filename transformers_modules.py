@@ -130,7 +130,7 @@ class TransformerModel(nn.Module):
 
         model.load_state_dict(best_model_wts)
 
-        return model
+        return model, optimizer
 
     def predict(self, model, dataloader, dates):
         model.eval()
@@ -160,32 +160,3 @@ class TransformerModel(nn.Module):
     def unfreeze_feature_extractor(self):
         for param in self.feature_extractor.parameters():
             param.requires_grad = True
-
-class TransformerClassifier(TransformerModel):
-
-    def __init__(self,
-        nhead = 2,
-        output_dim = 128,
-        num_encoder_layers=2,
-        dropout = 0.1,
-        input_dim = None,
-        num_classes = 9,
-                 ):
-        super().__init__(
-            nhead,
-            output_dim,
-            num_encoder_layers,
-            dropout,
-            input_dim,
-            num_classes,
-            ),
-
-        self.nhead = nhead
-        self.output_dim = output_dim
-        self.num_encoder_layers = num_encoder_layers
-        self.dropout = dropout
-        self.input_dim = input_dim
-        self.num_classes = num_classes
-
-
-

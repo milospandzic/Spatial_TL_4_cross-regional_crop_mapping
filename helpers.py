@@ -10,9 +10,10 @@ from torch.utils.data import DataLoader, Dataset
 
 import itertools
 
-import torch
 import joblib
 import re
+
+from transformers_modules import *
 
 data_path = Path('data')
 
@@ -39,41 +40,48 @@ def load_data(filename, train_size, test_size):
 
     return X_train, Y_train, X_val, Y_val, X_test, Y_test
 
-def train_model(model, data, deep_learning, dates):
+def train_model(model, data, methodology, dates):
 
     res = {}
 
     X_train, Y_train, X_val, Y_val, _, _ = data
 
-    if deep_learning:
-        train_loader = prepare_dataloader(data[0], data[1], True)
-        val_loader = prepare_dataloader(data[2], data[3], False)
+    if methodology=='TR':
+        train_loader = prepare_dataloader(X_train,Y_train, True)
+        val_loader = prepare_dataloader(X_val, Y_val, False)
 
-        model = model.fit(model, train_loader, val_loader, dates, num_epochs = 25)
+        model, optimizer = model.fit(model, train_loader, val_loader, dates, num_epochs=25)
+
         predictions = model.predict(model, val_loader, dates)
-        print(predictions)
+
     else:
         model.fit(X_train, Y_train)
         predictions = model.predict(X_val)
+        optimizer = None
 
     res = evaluation_metrics(res, Y_val, predictions)
 
-    return res, model
+    return res, model, optimizer
 
-def hyperparameter_opt(model_def, params, data, df, filename, deep_learning, dates):
+def hyperparameter_opt(model_def, params, data, df, filename, methodology, dates):
 
     model = model_def(**params)
 
     for iteration in np.arange(0, 1):
-        res, model = train_model(model, data, deep_learning, dates)
+        res, model, optimizer = train_model(model, data, methodology, dates)
         res['Params'] = str(params)
         res['Iteration'] = iteration + 1
         df = pd.concat([df, pd.DataFrame(res, index=[0])], ignore_index=True)
 
         param_str = [f"{k}-{v}" for k, v in params.items()]
-    #
-    #     joblib.dump(model,f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration+1}.joblib')
-    #
+
+        model_filename = f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration + 1}.joblib'
+
+        if methodology == 'TR':
+            save_dl_model(model, optimizer, model_filename)
+        else:
+            joblib.dump(model, model_filename)
+
     return df
 
 def evaluation_metrics(res, labels, predictions):
@@ -116,6 +124,7 @@ def prepare_dataloader(X, Y, shuffle):
 
     return loader
 
+
 class TimeSeriesDataset(Dataset):
     def __init__(self, X, y):
         self.X = torch.tensor(X, dtype=torch.float32)
@@ -127,4 +136,9 @@ class TimeSeriesDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
+def save_dl_model(model, optimizer, path="models/transformer_model.pth"):
+    torch.save({
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+    }, path)
 

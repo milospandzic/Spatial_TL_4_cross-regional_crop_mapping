@@ -1,3 +1,6 @@
 *.pkl
-.idea/
+models/
+results/
+Data/
 __pycache__/
+.idea/
