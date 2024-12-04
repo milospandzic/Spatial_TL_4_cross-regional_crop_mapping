@@ -16,6 +16,7 @@ import re
 from transformers_modules import *
 
 data_path = Path('data')
+results_path = Path('results')
 
 seed = 42
 torch.manual_seed(seed)
@@ -50,9 +51,10 @@ def train_model(model, data, methodology, dates):
         train_loader = prepare_dataloader(X_train,Y_train, True)
         val_loader = prepare_dataloader(X_val, Y_val, False)
 
-        model, optimizer = model.fit(model, train_loader, val_loader, dates, num_epochs=25)
+        model, optimizer = model.fit(model, train_loader, val_loader, dates, num_epochs=3)
 
         predictions = model.predict(model, val_loader, dates)
+        predictions = torch.tensor(predictions, device='cpu')
 
     else:
         model.fit(X_train, Y_train)
@@ -75,7 +77,7 @@ def hyperparameter_opt(model_def, params, data, df, filename, methodology, dates
 
         param_str = [f"{k}-{v}" for k, v in params.items()]
 
-        model_filename = f'models/{filename[:filename.rfind("_")]}/{re.sub("[^A-Z]", "", model_def.__name__)}-{"_".join(param_str)}_iteration-{iteration + 1}.joblib'
+        model_filename = f'models/{filename[:filename.rfind("_")]}/{methodology}-{"_".join(param_str)}_iteration-{iteration + 1}.joblib'
 
         if methodology == 'TR':
             save_dl_model(model, optimizer, model_filename)
@@ -107,6 +109,31 @@ def evaluation_metrics_per_class(res, labels, predictions):
         res[f'Recall {crops[label]}'] = recall_per_class[label]
 
     return res
+
+
+def extract_optimal_parameters(filename_results):
+    results = pd.read_csv(results_path / filename_results, index_col=0)
+
+    params_agg = results.groupby('Params').mean()
+    optimal_params = params_agg.iloc[np.argmax(params_agg['F1 score']), :].name
+    optimal_params_res = results.loc[results['Params'] == optimal_params, :]
+    optimal_iteration = optimal_params_res.loc[optimal_params_res['F1 score'] == max(optimal_params_res['F1 score']), 'Iteration'].values[0]
+
+    return optimal_params, optimal_iteration
+
+
+def load_best_model(model_def, params, iteration, filename, methodology):
+    param_str = [f"{k}-{v}" for k, v in eval(params).items()]
+
+    model_path = f'models/{filename[:filename.rfind("_")]}/{methodology}-{"_".join(param_str)}_iteration-{iteration}.joblib'
+
+    if methodology == 'RF':
+        model = joblib.load(model_path)
+    else:
+        model = model_def(**eval(params))
+        model.load_state_dict(torch.load(model_path, weights_only=True)['model_state_dict'])
+
+    return model
 
 ############################################ Transformers specific #####################################################
 

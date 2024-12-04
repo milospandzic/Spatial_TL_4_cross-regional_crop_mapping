@@ -145,6 +145,8 @@ class TransformerModel(nn.Module):
 
                 predictions.extend(preds)
 
+        predictions = torch.tensor(predictions, device='cpu')
+
         return predictions
 
     def forward(self, src, dates):

@@ -1,46 +1,59 @@
 from helpers import *
 
-results_path = Path('results')
-filename_results = 'hypp_opt_SRB_S2-S1_RFC.csv'
+methodology = 'RF'
 
-warm_start = True
-
-filename_train = 'SRB_S2-S1_data.pkl'
+filename_train = 'SLO_S2-S1_data.pkl'
 filename_test = 'SRB_S2-S1_data.pkl'
-
-model = RandomForestClassifier
+filename_results = f'hypp_opt_{filename_train[:filename_train.rfind("_")]}_{methodology}.csv'
 
 train_val_test_ratio = [0.15, 0.15, 0.7]
+
+model = {'RF': RandomForestClassifier, 'TR': TransformerModel}
+
 #-----------------------------------------------------------------------------------------------------------------------#
 
-results = pd.read_csv(results_path / filename_results, index_col=0)
+optimal_params, optimal_iteration = extract_optimal_parameters(filename_results)
 
-params_agg = results.groupby('Params').mean()
-optimal_params = params_agg.iloc[np.argmax(params_agg['F1 score']), :].name
-optimal_params_res = results.loc[results['Params'] == optimal_params, :]
-optimal_iteration = optimal_params_res.loc[optimal_params_res['F1 score']==max(optimal_params_res['F1 score']), 'Iteration'].values[0]
+X_train, Y_train, X_val, Y_val, X_test, Y_test = load_data(filename_test, train_val_test_ratio[0], train_val_test_ratio[2])
+dates = X_train.columns.str[:4].unique()
 
-X_train, Y_train, _, _, X_test, Y_test = load_data(filename_test, train_val_test_ratio[0], train_val_test_ratio[2])
+best_model = load_best_model(model[methodology], optimal_params, optimal_iteration, filename_train, methodology)
 
-param_str = [f"{k}-{v}" for k, v in eval(optimal_params).items()]
+#-----------------------------------------------------------------------------------------------------------------------#
 
-best_model_path = f'models/{filename_train[:filename_train.rfind("_")]}/{re.sub("[^A-Z]", "", model.__name__)}-{"_".join(param_str)}_iteration-{optimal_iteration}.joblib'
-best_loaded_model = joblib.load(best_model_path)
+if methodology == 'RF':
+    predictions = best_model.predict(X_test)
+else:
+    test_loader = prepare_dataloader(X_test, Y_test, False)
+    best_model.to(device)
+    predictions = best_model.predict(best_model, test_loader, dates)
 
-predictions = best_loaded_model.predict(X_test)
+res = pd.DataFrame(evaluation_metrics({}, Y_test, predictions), index=[0])
 
-res = evaluation_metrics({}, Y_test, predictions)
+approach = 'FS' if filename_train.split('_')[0] == filename_test.split('_')[0] else 'naive'
+res.to_csv(results_path/f'inference-{approach}_{filename_train[:filename_train.rfind("_")]}_{filename_test[:filename_test.rfind("_")]}_{methodology}.csv')
 
-print(f'n_estimators: {best_loaded_model.n_estimators}\n {res}')
+# ---------------------------------------------- TL --------------------------------------------------------------------#
 
-if warm_start: # Only for RF (warm-start)
-    best_loaded_model.warm_start = warm_start
-    best_loaded_model.n_estimators += best_loaded_model.n_estimators
-    best_loaded_model.fit(X_train, Y_train)
+if approach=='naive':
+    if methodology=='RF':
+        best_model.warm_start = True
+        best_model.n_estimators += best_model.n_estimators
+        best_model.fit(X_train, Y_train)
+        predictions = best_model.predict(X_test)
 
-predictions = best_loaded_model.predict(X_test)
+    else:
+        train_loader = prepare_dataloader(X_train, Y_train, True)
+        val_loader = prepare_dataloader(X_val, Y_val, False)
 
-res = evaluation_metrics({}, Y_test, predictions)
+        best_model.freeze_feature_extractor()
 
-print(f'n_estimators: {best_loaded_model.n_estimators}\n {res}')
+        best_model, _ = best_model.fit(best_model, train_loader, val_loader, dates, num_epochs=3)
+
+        predictions = best_model.predict(best_model, test_loader, dates)
+
+
+    res = pd.DataFrame(evaluation_metrics({}, Y_test, predictions), index=[0])
+    res.to_csv(results_path/f'inference-TL_{filename_train[:filename_train.rfind("_")]}_{filename_test[:filename_test.rfind("_")]}_{methodology}.csv')
+
 

@@ -1,11 +1,10 @@
 from helpers import *
-from transformers_modules import *
 
-methodology = 'TR'  # TR or RF
+methodology = 'RF'
 
-filename = 'SRB_S2-S1_data.pkl'
+filename = 'SLO_S2-S1_data.pkl'
 
-train_val_test_ratio = [0.7, 0.15, 0.15]
+train_val_test_ratio = [0.7, 0.15, 0.15] if filename.split('_')[0]=='SLO' else [0.15, 0.15, 0.7]
 
 data = load_data(filename, train_val_test_ratio[0], train_val_test_ratio[2])
 dates = data[0].columns.str[:4].unique()
@@ -23,5 +22,5 @@ meta_params = {'filename': filename, 'methodology': methodology, 'dates': dates}
 
 for p in combination_params:
     df_res = hyperparameter_opt(model[methodology], p, data, df_res, **meta_params)
-    df_res.to_csv(f'results/hypp_opt_{filename[:filename.rfind("_")]}_{re.sub("[^A-Z]", "", model[methodology].__name__)}.csv')
+    df_res.to_csv(f'results/hypp_opt_{filename[:filename.rfind("_")]}_{methodology}.csv')
 
