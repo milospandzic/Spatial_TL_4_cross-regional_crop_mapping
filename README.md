@@ -3,5 +3,5 @@
 
 The code presented was developed during the course of research for the manuscript above. It is freely available for use and adaptation, provided that appropriate citation is given. We encourage its reuse to support further research and applications in this area.  <br>
 
-Enumerated files 00_xxx.py, 01_yyy.py,..., 04_add_classes_to_df.py are related to creation of datasets. <br>
-Remaining files are related to experimentaiton on datasets explained in the manuscript.
+1) Enumerated files 00_xxx.py, 01_yyy.py,..., 04_add_classes_to_df.py are related to creation of datasets. <br>
+2) Remaining files are related to experimentaiton on datasets explained in the manuscript.
